@@ -281,8 +281,12 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
     <div><button onclick="closePlayer()">✕ Cerrar</button></div>
   </div>
   <div class="server-list" id="server-buttons"></div>
-  <iframe id="player-frame" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+  <div id="player-container" style="flex:1;display:flex;align-items:center;justify-content:center;background:#000">
+    <iframe id="player-frame" allowfullscreen allow="autoplay; encrypted-media" style="flex:1;border:0;width:100%;height:100%"></iframe>
+    <video id="player-video" controls autoplay style="width:100%;height:100%;max-width:100%;max-height:100%;display:none" allowfullscreen></video>
+  </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <script>
 let currentProvider = '';
@@ -619,20 +623,57 @@ async function loadServersAndPlay(itemId) {
   sb.innerHTML = d.results.map((s,i) => `<button class="${i===0?'active':''}" onclick="playServer(${i})">${s.name}</button>`).join('');
   window._servers = d.results;
   document.getElementById('player-title').textContent = d.results[0].name;
-  document.getElementById('player-frame').src = d.results[0].url;
+  playUrl(d.results[0].url);
   document.getElementById('player-overlay').classList.add('active');
 }
 
 function playServer(idx) {
   if (!window._servers || !window._servers[idx]) return;
   document.querySelectorAll('.server-list button').forEach((b,i) => b.classList.toggle('active', i === idx));
+  const url = window._servers[idx].url;
   document.getElementById('player-title').textContent = window._servers[idx].name;
-  document.getElementById('player-frame').src = window._servers[idx].url;
+  playUrl(url);
+}
+
+function playUrl(url) {
+  const iframe = document.getElementById('player-frame');
+  const video = document.getElementById('player-video');
+  // Destroy previous HLS instance
+  if (window._hls) { window._hls.destroy(); window._hls = null; }
+  
+  if (url.endsWith('.m3u8') || url.includes('.m3u8')) {
+    // HLS stream - use video tag with hls.js
+    iframe.style.display = 'none';
+    video.style.display = 'block';
+    video.src = url;
+    if (window.Hls && Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      window._hls = hls;
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Native HLS (Safari)
+      video.src = url;
+    }
+    video.play().catch(()=>{});
+  } else {
+    // Regular URL - use iframe
+    iframe.style.display = 'block';
+    video.style.display = 'none';
+    video.pause();
+    iframe.src = url;
+  }
 }
 
 function closePlayer() {
   document.getElementById('player-overlay').classList.remove('active');
   document.getElementById('player-frame').src = '';
+  const video = document.getElementById('player-video');
+  video.pause();
+  video.src = '';
+  video.style.display = 'none';
+  document.getElementById('player-frame').style.display = 'block';
+  if (window._hls) { window._hls.destroy(); window._hls = null; }
 }
 
 // ===== INIT =====

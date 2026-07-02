@@ -6,6 +6,7 @@ from .lacartoons import LaCartoonsProvider
 from .animeflv import AnimeFLVProvider
 from .pelisplusto import PelisplustoProvider
 from .flixlatam import FlixLatamProvider
+from .iptv import IPTVProvider
 
 PROVIDERS = [
     CineCalidadProvider(),
@@ -15,6 +16,7 @@ PROVIDERS = [
     LatinAnimeProvider(),
     LaCartoonsProvider(),
     AnimeFLVProvider(),
+    IPTVProvider(),
 ]
 
 def get_provider(name: str):
