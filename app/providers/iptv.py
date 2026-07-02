@@ -16,8 +16,7 @@ class IPTVProvider(BaseProvider):
 
     # M3U playlist sources
     PLAYLISTS = {
-        "mx": "https://iptv-org.github.io/iptv/countries/mx.m3u",  # Mexico
-        "es": "https://iptv-org.github.io/iptv/countries/es.m3u",  # Spain
+        "spa": "https://iptv-org.github.io/iptv/languages/spa.m3u",  # Spanish (2240+ channels)
         "movies": "https://iptv-org.github.io/iptv/categories/movies.m3u",
         "series": "https://iptv-org.github.io/iptv/categories/series.m3u",
     }
@@ -115,16 +114,14 @@ class IPTVProvider(BaseProvider):
         ]
 
     async def get_tv_shows(self, page: int = 1) -> list[TvShow]:
-        """Series/live TV from IPTV."""
-        # Combine series + Mexico + Spain channels
+        """Series/live TV from IPTV (Spanish channels + series)."""
         series = await self._get_playlist("series")
-        mx = await self._get_playlist("mx")
-        es = await self._get_playlist("es")
+        spa = await self._get_playlist("spa")
 
         # Combine and deduplicate
         seen = set()
         all_tv = []
-        for ch in series + mx + es:
+        for ch in spa + series:
             if ch["url"] not in seen:
                 seen.add(ch["url"])
                 all_tv.append(ch)
