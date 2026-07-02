@@ -5,12 +5,12 @@ from .latinanime import LatinAnimeProvider
 from .lacartoons import LaCartoonsProvider
 from .animeflv import AnimeFLVProvider
 from .pelisplusto import PelisplustoProvider
-from .cine24h import Cine24hProvider
+from .flixlatam import FlixLatamProvider
 
 PROVIDERS = [
     CineCalidadProvider(),
     PelisplustoProvider(),
-    Cine24hProvider(),
+    FlixLatamProvider(),
     SoloLatinoProvider(),
     LatinAnimeProvider(),
     LaCartoonsProvider(),
