@@ -321,7 +321,12 @@ function selectProvider(name) {
   currentProvider = name;
   document.getElementById('provider-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'block';
-  switchTab('movies');
+  // Auto-detect: try movies first; if empty, switch to series
+  loadMovies(1).then(d => {
+    if (!d.results || d.results.length === 0) {
+      switchTab('series');
+    }
+  });
 }
 
 function showProviders() {
@@ -389,6 +394,7 @@ async function loadMovies(page) {
   const d = await r.json();
   renderGrid(d.results);
   if (d.results.length > 0) currentPage = page + 1;
+  return d;
 }
 
 // ===== SERIES =====
