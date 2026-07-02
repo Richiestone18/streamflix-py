@@ -3,8 +3,10 @@ Pelisplusto provider — now redirects to TioPlus.app.
 Spanish movies/series/animes/doramas.
 """
 import base64
+import re
 from bs4 import BeautifulSoup
-from ..base import BaseProvider, Movie, TvShow, Category, Server
+from ..base import BaseProvider, Movie, TvShow, Category, Server, Episode, Season, MediaDetails
+from typing import Optional
 
 
 class PelisplustoProvider(BaseProvider):
@@ -118,3 +120,136 @@ class PelisplustoProvider(BaseProvider):
                     servers.append(Server(id=src, name=iframe.get("title", "Player") or "Player"))
 
         return servers
+
+    async def get_details(self, item_id: str) -> Optional[MediaDetails]:
+        html = await self._get(item_id)
+        soup = BeautifulSoup(html, "lxml")
+
+        is_series = "/serie/" in item_id or "/anime/" in item_id
+        details = MediaDetails(
+            id=item_id,
+            title="",
+            type="series" if is_series else "movie",
+        )
+
+        # Title from h1.slugh1
+        h1 = soup.select_one("h1.slugh1, h1")
+        if h1:
+            details.title = h1.get_text(strip=True)
+
+        # Poster / backdrop from div.bg background-image
+        bg = soup.select_one("div.bg[style]")
+        if bg:
+            style = bg.get("style", "")
+            m = re.search(r"url\(['\"]?([^'\")]+)['\"]?\)", style)
+            if m:
+                details.banner = m.group(1)
+                details.poster = m.group(1).replace("w1280", "w500")
+
+        # Overview from div.description p
+        desc = soup.select_one("div.description p")
+        if desc:
+            details.overview = desc.get_text(strip=True)
+
+        # Genres - only from the article content, not sidebar/footer
+        for a in soup.select("article a[href*='/genero/']"):
+            g = a.get_text(strip=True)
+            if g and g not in details.genres:
+                details.genres.append(g)
+
+        # Year
+        year_a = soup.select_one('a[href*="/year/"]')
+        if year_a:
+            details.year = year_a.get_text(strip=True)
+
+        # Rating
+        for span in soup.select("span"):
+            txt = span.get_text(strip=True)
+            if "Rating:" in txt:
+                m = re.search(r"([\d.]+)", txt.replace("Rating:", "").strip())
+                if m:
+                    try:
+                        details.rating = float(m.group(1))
+                    except ValueError:
+                        pass
+                break
+
+        # Director
+        for div in soup.select("div.genres"):
+            b = div.select_one("b")
+            if b and "Director" in b.get_text(strip=True):
+                p = div.select_one("p")
+                if p:
+                    name = p.get_text(strip=True)
+                    if name:
+                        details.directors.append(name)
+                break
+
+        # Cast
+        for a in soup.select("article a[href*='/actor/']"):
+            name = a.get_text(strip=True)
+            if name and name not in details.cast:
+                details.cast.append(name)
+
+        # Audio / Quality (not always present)
+        for span in soup.select("span"):
+            txt = span.get_text(strip=True)
+            if "Audio:" in txt:
+                details.audio = txt.replace("Audio:", "").strip()
+            if "Calidad:" in txt:
+                details.quality = txt.replace("Calidad:", "").strip()
+
+        # For series: parse episodes
+        if is_series:
+            season_map = {}
+            for article in soup.select("article.item"):
+                a = article.select_one("a.itemA")
+                if not a:
+                    continue
+                href = a.get("href", "")
+                if not href.startswith("http"):
+                    href = self.base_url + href
+                # URL pattern: /serie/name/season/X/episode/Y
+                m_s = re.search(r"/season/(\d+)", href)
+                m_e = re.search(r"/episode/(\d+)", href)
+                if not m_s:
+                    continue
+                s_num = int(m_s.group(1))
+                e_num = int(m_e.group(1)) if m_e else 1
+
+                # Episode title from img alt or link text
+                img = article.select_one("img")
+                ep_title = ""
+                if img:
+                    ep_title = img.get("alt", "").strip()
+                if not ep_title:
+                    ep_title = a.get("title", "").strip()
+                # Clean "SXXEYY: Title" format
+                ep_title = re.sub(r"S\d+E\d+:\s*", "", ep_title).strip()
+                if not ep_title:
+                    ep_title = f"Episodio {e_num}"
+
+                ep = Episode(
+                    id=href,
+                    number=e_num,
+                    season=s_num,
+                    title=ep_title,
+                )
+
+                if s_num not in season_map:
+                    season_map[s_num] = []
+                season_map[s_num].append(ep)
+
+            seasons = []
+            for s_num in sorted(season_map.keys()):
+                # Sort episodes by number
+                eps = sorted(season_map[s_num], key=lambda e: e.number)
+                seasons.append(Season(
+                    id=f"{item_id}#season{s_num}",
+                    number=s_num,
+                    title=f"Temporada {s_num}",
+                    episodes=eps,
+                ))
+            details.seasons = seasons
+
+        return details

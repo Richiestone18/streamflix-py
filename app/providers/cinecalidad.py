@@ -1,8 +1,10 @@
 """
 CineCalidad provider (Spanish movies/series).
 """
+import re
 from bs4 import BeautifulSoup
-from ..base import BaseProvider, Movie, TvShow, Category, Server, Episode, Season
+from ..base import BaseProvider, Movie, TvShow, Category, Server, Episode, Season, MediaDetails
+from typing import Optional
 
 
 class CineCalidadProvider(BaseProvider):
@@ -130,3 +132,141 @@ class CineCalidadProvider(BaseProvider):
         html = await self._get(url)
         soup = BeautifulSoup(html, "lxml")
         return self._parse_shows(soup.select("article.item[id^=post-]"))
+
+    async def get_details(self, item_id: str) -> Optional[MediaDetails]:
+        html = await self._get(item_id)
+        soup = BeautifulSoup(html, "lxml")
+
+        is_series = "/ver-serie/" in item_id
+        details = MediaDetails(
+            id=item_id,
+            title="",
+            type="series" if is_series else "movie",
+        )
+
+        # Title
+        h1 = soup.select_one("#single h1, .dtsingle h1")
+        if h1:
+            details.title = h1.get_text(strip=True)
+
+        # Poster
+        img = soup.select_one("#single img[data-src], .dtsingle img[data-src]")
+        if img:
+            details.poster = img.get("data-src") or img.get("src")
+
+        # Overview (first <p> in the info column)
+        for p in soup.select("#single p, .dtsingle p"):
+            txt = p.get_text(strip=True)
+            if txt and len(txt) > 20 and "Títulos:" not in txt:
+                details.overview = txt
+                break
+
+        # Rating
+        rating_el = soup.select_one("#single b, .dtsingle b")
+        if rating_el:
+            try:
+                details.rating = float(rating_el.get_text(strip=True))
+            except ValueError:
+                pass
+
+        # Genres - only from the single content area
+        genres = []
+        for a in soup.select('#single a[href*="genero-de-la-pelicula/"], .dtsingle a[href*="genero-de-la-pelicula/"]'):
+            g = a.get_text(strip=True)
+            if g:
+                genres.append(g)
+        details.genres = genres
+
+        # Year
+        for span in soup.select("#single span, .dtsingle span"):
+            txt = span.get_text(strip=True)
+            if "Fecha:" in txt:
+                m = re.search(r"(\d{4})", txt)
+                if m:
+                    details.year = m.group(1)
+                break
+
+        # Audio
+        for span in soup.select("#single span, .dtsingle span"):
+            txt = span.get_text(strip=True)
+            if "Audio:" in txt:
+                details.audio = txt.replace("Audio:", "").strip()
+                break
+
+        # Quality
+        for span in soup.select("#single span, .dtsingle span"):
+            txt = span.get_text(strip=True)
+            if "Calidad:" in txt:
+                details.quality = txt.replace("Calidad:", "").strip()
+                break
+
+        # Cast
+        for a in soup.select('#single a[href*="reparto-de-"], .dtsingle a[href*="reparto-de-"]'):
+            name = a.get_text(strip=True)
+            if name:
+                details.cast.append(name)
+
+        # Directors
+        for a in soup.select('#single a[href*="director-de-"], .dtsingle a[href*="director-de-"]'):
+            name = a.get_text(strip=True)
+            if name:
+                details.directors.append(name)
+
+        # Seasons and episodes (series only)
+        if is_series:
+            seasons = []
+            for ul in soup.select("#single ul.episodios, .dtsingle ul.episodios, ul.episodios"):
+                episodes = []
+                season_num = 1
+                for li in ul.select("li"):
+                    li_text = li.get_text(strip=True)
+                    a = li.select_one("a[href]")
+                    if not a:
+                        continue
+                    href = a.get("href", "")
+                    ep_title = a.get_text(strip=True)
+
+                    # Parse "S1-E2" from li text
+                    m_e = re.search(r"S(\d+)\s*-?\s*E(\d+)", li_text)
+                    m_h = re.search(r"temporada/(\d+)", href)
+                    m_h2 = re.search(r"-(\d+)x(\d+)", href)
+                    if m_e:
+                        s_num = int(m_e.group(1))
+                        e_num = int(m_e.group(2))
+                    elif m_h:
+                        s_num = int(m_h.group(1))
+                        e_num_match = re.search(r"capitulo/(\d+)", href)
+                        e_num = int(e_num_match.group(1)) if e_num_match else len(episodes) + 1
+                    elif m_h2:
+                        s_num = int(m_h2.group(1))
+                        e_num = int(m_h2.group(2))
+                    else:
+                        continue
+
+                    season_num = s_num
+                    episodes.append(Episode(
+                        id=href,
+                        number=e_num,
+                        season=s_num,
+                        title=ep_title or f"Episodio {e_num}",
+                    ))
+
+                if episodes:
+                    # Check if season already exists
+                    found = False
+                    for s in seasons:
+                        if s.number == season_num:
+                            s.episodes.extend(episodes)
+                            found = True
+                            break
+                    if not found:
+                        seasons.append(Season(
+                            id=f"{item_id}#season{season_num}",
+                            number=season_num,
+                            title=f"Temporada {season_num}",
+                            episodes=episodes,
+                        ))
+
+            details.seasons = seasons
+
+        return details

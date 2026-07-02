@@ -34,8 +34,10 @@ class TvShow:
 class Episode:
     id: str
     number: int
+    season: int = 1
     title: str = ""
     poster: Optional[str] = None
+    overview: Optional[str] = None
     released: Optional[str] = None
 
 
@@ -57,6 +59,25 @@ class Server:
 class Category:
     name: str
     items: list = field(default_factory=list)
+
+
+@dataclass
+class MediaDetails:
+    """Detailed info about a movie or series."""
+    id: str
+    title: str
+    type: str = "movie"  # "movie" or "series"
+    poster: Optional[str] = None
+    banner: Optional[str] = None
+    overview: Optional[str] = None
+    rating: Optional[float] = None
+    year: Optional[str] = None
+    genres: list = field(default_factory=list)
+    cast: list = field(default_factory=list)
+    directors: list = field(default_factory=list)
+    quality: Optional[str] = None
+    audio: Optional[str] = None
+    seasons: list = field(default_factory=list)  # list[Season] for series
 
 
 class HttpClient:
@@ -127,6 +148,11 @@ class BaseProvider(ABC):
 
     async def get_servers(self, movie_id: str) -> list[Server]:
         return []
+
+    async def get_details(self, item_id: str) -> Optional[MediaDetails]:
+        """Get detailed info about a movie or series.
+        Override in each provider to extract full metadata."""
+        return None
 
     async def get_video(self, server: Server) -> str:
         return server.id
