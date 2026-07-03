@@ -290,7 +290,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
         <option value="4:3">4:3</option>
         <option value="original">Original</option>
       </select>
-      <button onclick="toggleAppFullscreen()" title="Pantalla completa">⛶</button>
+      <button onclick="togglePlayerFullscreen()" title="Pantalla completa">⛶</button>
       <button onclick="closePlayer()">✕ Cerrar</button>
     </div>
   </div>
@@ -755,13 +755,35 @@ function closePlayer() {
 function toggleAppFullscreen() {
   const btn = document.getElementById('fullscreen-btn');
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(()=>{});
-    btn.textContent = '⛶';
-    btn.title = 'Salir de pantalla completa';
+    // Try fullscreen on the whole document
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) req.call(el);
+    if (btn) btn.title = 'Salir de pantalla completa';
   } else {
-    document.exitFullscreen();
-    btn.textContent = '⛶';
-    btn.title = 'Pantalla completa';
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+    if (exit) exit.call(document);
+    if (btn) btn.title = 'Pantalla completa';
+  }
+}
+
+function togglePlayerFullscreen() {
+  // Try fullscreen on the player overlay first (most immersive)
+  const overlay = document.getElementById('player-overlay');
+  if (!document.fullscreenElement) {
+    const el = overlay || document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) req.call(el).catch(() => {
+      // Fallback: fullscreen the video element directly
+      const video = document.getElementById('player-video');
+      const iframe = document.getElementById('player-frame');
+      const target = (video.style.display !== 'none') ? video : iframe;
+      const req2 = target.requestFullscreen || target.webkitRequestFullscreen;
+      if (req2) req2.call(target).catch(()=>{ toggleAppFullscreen(); });
+    });
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+    if (exit) exit.call(document);
   }
 }
 
