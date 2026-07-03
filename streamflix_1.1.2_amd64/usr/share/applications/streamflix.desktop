@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Streamflix
+Comment=Streaming aggregator - TV, movies, series, IPTV
+Exec=/usr/bin/streamflix
+Icon=streamflix
+Terminal=false
+Type=Application
+Categories=AudioVideo;TV;Network;
+StartupNotify=true
