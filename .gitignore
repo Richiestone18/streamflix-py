@@ -1,7 +1,23 @@
-__pycache__/
-*.pyc
-.venv/
-*.egg-info/
+# Streamflix
+
+# Binary artifacts (releases only, not in repo)
+*.exe
+*.deb
 dist/
 build/
-.env
+*.spec
+release_files/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
