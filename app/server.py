@@ -278,12 +278,23 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 <div id="player-overlay">
   <div class="player-top">
     <span class="info" id="player-title"></span>
-    <div><button onclick="closePlayer()">✕ Cerrar</button></div>
+    <div class="player-controls">
+      <select id="aspect-select" onchange="setAspect(this.value)" style="background:#222;color:#fff;border:1px solid #444;padding:3px 6px;border-radius:4px;cursor:pointer">
+        <option value="fill">Llenar pantalla</option>
+        <option value="16:9">16:9</option>
+        <option value="4:3">4:3</option>
+        <option value="original">Original</option>
+      </select>
+      <button onclick="toggleFullscreen()" title="Pantalla completa">⛶ Fullscreen</button>
+      <button onclick="closePlayer()">✕ Cerrar</button>
+    </div>
   </div>
   <div class="server-list" id="server-buttons"></div>
-  <div id="player-container" style="flex:1;display:flex;align-items:center;justify-content:center;background:#000">
-    <iframe id="player-frame" allowfullscreen allow="autoplay; encrypted-media" style="flex:1;border:0;width:100%;height:100%"></iframe>
-    <video id="player-video" controls autoplay style="width:100%;height:100%;max-width:100%;max-height:100%;display:none" allowfullscreen></video>
+  <div id="player-container" style="flex:1;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden">
+    <div id="player-video-wrapper" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden">
+      <iframe id="player-frame" allowfullscreen allow="autoplay; encrypted-media" style="border:0;width:100%;height:100%"></iframe>
+      <video id="player-video" controls autoplay style="display:none" allowfullscreen></video>
+    </div>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -635,6 +646,57 @@ function playServer(idx) {
   playUrl(url);
 }
 
+let currentAspect = 'fill';
+
+function setAspect(ratio) {
+  currentAspect = ratio;
+  const wrapper = document.getElementById('player-video-wrapper');
+  const iframe = document.getElementById('player-frame');
+  const video = document.getElementById('player-video');
+  
+  function apply(el) {
+    if (!el || !el.style.display || el.style.display === 'none') return;
+    el.style.objectFit = 'contain';
+    el.style.width = '100%';
+    el.style.height = '100%';
+    
+    if (ratio === 'fill') {
+      el.style.objectFit = 'cover';
+    } else if (ratio === '16:9') {
+      el.style.width = '100%';
+      el.style.aspectRatio = '16/9';
+      el.style.maxHeight = '100%';
+    } else if (ratio === '4:3') {
+      el.style.width = '100%';
+      el.style.aspectRatio = '4/3';
+      el.style.maxHeight = '100%';
+    } else {
+      // original - contain
+      el.style.objectFit = 'contain';
+    }
+  }
+  
+  apply(iframe);
+  apply(video);
+}
+
+function toggleFullscreen() {
+  const overlay = document.getElementById('player-overlay');
+  if (!document.fullscreenElement) {
+    overlay.requestFullscreen().catch(() => {
+      // Fallback: try fullscreen on player-video or player-frame
+      const video = document.getElementById('player-video');
+      if (video.style.display !== 'none') {
+        video.requestFullscreen().catch(()=>{});
+      } else {
+        document.getElementById('player-frame').requestFullscreen().catch(()=>{});
+      }
+    });
+  } else {
+    document.exitFullscreen();
+  }
+}
+
 function playUrl(url) {
   const iframe = document.getElementById('player-frame');
   const video = document.getElementById('player-video');
@@ -652,7 +714,6 @@ function playUrl(url) {
       hls.attachMedia(video);
       window._hls = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS (Safari)
       video.src = url;
     }
     video.play().catch(()=>{});
@@ -663,16 +724,26 @@ function playUrl(url) {
     video.pause();
     iframe.src = url;
   }
+  
+  // Apply current aspect ratio
+  setAspect(currentAspect);
 }
 
 function closePlayer() {
   document.getElementById('player-overlay').classList.remove('active');
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  }
   document.getElementById('player-frame').src = '';
   const video = document.getElementById('player-video');
   video.pause();
   video.src = '';
   video.style.display = 'none';
   document.getElementById('player-frame').style.display = 'block';
+  video.style.objectFit = '';
+  video.style.aspectRatio = '';
+  document.getElementById('player-frame').style.objectFit = '';
+  document.getElementById('player-frame').style.aspectRatio = '';
   if (window._hls) { window._hls.destroy(); window._hls = null; }
 }
 
