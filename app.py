@@ -50,7 +50,7 @@ def run_server(port: int):
 
 def open_browser_app(url: str, fullscreen: bool = False):
     """Open URL in browser app mode (looks like a desktop app, no address bar).
-    Priority: Edge > Chrome > Brave > Firefox > default browser.
+    Priority: Brave > Chrome > Edge > Firefox > default browser.
     App mode = no address bar, no tabs, looks like a native window.
     """
     args = ['--app=' + url, '--new-window']
@@ -62,14 +62,15 @@ def open_browser_app(url: str, fullscreen: bool = False):
     
     # Windows
     if sys.platform == 'win32':
-        # Edge (comes with Windows 10/11)
-        edge = os.path.expandvars(r'%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe')
-        if os.path.exists(edge):
-            browsers.append((edge, args))
-        # Also check Program Files
-        edge2 = r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
-        if os.path.exists(edge2):
-            browsers.append((edge2, args))
+        # Brave (first priority - has built-in adblock)
+        for p in [
+            os.path.expandvars(r'%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe'),
+            r'C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe',
+            r'C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe',
+        ]:
+            if os.path.exists(p):
+                browsers.append((p, args))
+                break
         # Chrome
         for p in [
             os.path.expandvars(r'%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe'),
@@ -79,10 +80,11 @@ def open_browser_app(url: str, fullscreen: bool = False):
             if os.path.exists(p):
                 browsers.append((p, args))
                 break
-        # Brave
+        # Edge (comes with Windows 10/11)
         for p in [
-            os.path.expandvars(r'%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe'),
-            r'C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe',
+            os.path.expandvars(r'%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe'),
+            r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+            r'C:\Program Files\Microsoft\Edge\Application\msedge.exe',
         ]:
             if os.path.exists(p):
                 browsers.append((p, args))
