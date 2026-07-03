@@ -3,7 +3,7 @@ from .cinecalidad import CineCalidadProvider
 from .sololatino import SoloLatinoProvider
 from .latinanime import LatinAnimeProvider
 from .lacartoons import LaCartoonsProvider
-from .animeflv import AnimeFLVProvider
+from .jkanime import JKanimeProvider
 from .pelisplusto import PelisplustoProvider
 from .flixlatam import FlixLatamProvider
 from .iptv import IPTVProvider
@@ -16,7 +16,7 @@ PROVIDERS = [
     SoloLatinoProvider(),
     LatinAnimeProvider(),
     LaCartoonsProvider(),
-    AnimeFLVProvider(),
+    JKanimeProvider(),
     IPTVProvider(),
     CableVisionHDProvider(),
 ]
