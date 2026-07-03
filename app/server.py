@@ -141,6 +141,8 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 .top-bar .logo{color:var(--accent);font-size:1.4rem;font-weight:700;cursor:pointer;white-space:nowrap}
 .top-bar .back-btn{background:var(--accent2);color:var(--text);border:0;padding:.5rem 1rem;border-radius:8px;cursor:pointer;font-size:.9rem}
 .top-bar .back-btn:hover{background:var(--accent)}
+.top-bar .top-btn{background:transparent;color:var(--text);border:1px solid var(--accent2);padding:.5rem .8rem;border-radius:8px;cursor:pointer;font-size:1rem;line-height:1}
+.top-bar .top-btn:hover{background:var(--accent2)}
 .search-box{flex:1;display:flex;gap:.5rem;max-width:400px;margin-left:auto}
 .search-box input{flex:1;background:var(--bg);border:1px solid var(--accent2);color:var(--text);padding:.6rem 1rem;border-radius:8px;outline:0;font-size:.95rem}
 .search-box input:focus{border-color:var(--accent)}
@@ -252,6 +254,8 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
       <input id="search-input" placeholder="Buscar..." onkeydown="if(event.key==='Enter')doSearch()">
       <button onclick="doSearch()">🔍</button>
     </div>
+    <button onclick="toggleAppFullscreen()" id="fullscreen-btn" class="top-btn" title="Pantalla completa">⛶</button>
+    <button onclick="closeApp()" id="close-btn" class="top-btn" title="Cerrar">✕</button>
   </div>
   <div class="tabs">
     <div class="tab active" data-tab="movies" onclick="switchTab('movies')">🎬 Películas</div>
@@ -269,6 +273,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 <div id="detail-screen">
   <div id="detail-backdrop" class="detail-backdrop">
     <button class="detail-back" onclick="closeDetail()">← Volver</button>
+    <button class="detail-close" onclick="closeApp()" title="Cerrar">✕</button>
   </div>
   <div class="detail-content" id="detail-content"></div>
   <div class="seasons-section" id="seasons-section"></div>
@@ -285,7 +290,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
         <option value="4:3">4:3</option>
         <option value="original">Original</option>
       </select>
-      <button onclick="toggleFullscreen()" title="Pantalla completa">⛶ Fullscreen</button>
+      <button onclick="toggleAppFullscreen()" title="Pantalla completa">⛶</button>
       <button onclick="closePlayer()">✕ Cerrar</button>
     </div>
   </div>
@@ -747,7 +752,54 @@ function closePlayer() {
   if (window._hls) { window._hls.destroy(); window._hls = null; }
 }
 
-// ===== INIT =====
+function toggleAppFullscreen() {
+  const btn = document.getElementById('fullscreen-btn');
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(()=>{});
+    btn.textContent = '⛶';
+    btn.title = 'Salir de pantalla completa';
+  } else {
+    document.exitFullscreen();
+    btn.textContent = '⛶';
+    btn.title = 'Pantalla completa';
+  }
+}
+
+function closeApp() {
+  // Try to close the window (works in pywebview and standalone browser)
+  if (window.close) {
+    window.close();
+  }
+  // Fallback: try pywebview close
+  if (window.pywebview && window.pywebview.close) {
+    window.pywebview.close();
+  }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'F11') {
+    e.preventDefault();
+    toggleAppFullscreen();
+  }
+  if (e.key === 'Escape') {
+    // If player is open, close it first
+    const player = document.getElementById('player-overlay');
+    if (player && player.classList.contains('active')) {
+      closePlayer();
+      e.preventDefault();
+    }
+  }
+});
+
+// Track fullscreen changes (F11, ESC, window buttons)
+document.addEventListener('fullscreenchange', function() {
+  const btn = document.getElementById('fullscreen-btn');
+  if (btn) {
+    btn.title = document.fullscreenElement ? 'Salir de pantalla completa' : 'Pantalla completa';
+  }
+});
+
 loadProviders();
 </script>
 </body>
