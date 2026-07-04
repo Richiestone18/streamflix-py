@@ -8,6 +8,19 @@ from .pelisplusto import PelisplustoProvider
 from .flixlatam import FlixLatamProvider
 from .iptv import IPTVProvider
 from .cablevisionhd import CableVisionHDProvider
+# New providers from streamflix-reborn
+from .cine24h import Cine24hProvider
+from .doramasflix import DoramasflixProvider
+from .pelisflixhd import PelisflixHdProvider
+from .magistv import MagistvProvider
+from .seriesflix import SeriesFlixProvider
+from .tvporinternethd import TvporinternetHDProvider
+from .tvlibrefutbol import TvLibrefutbolProvider
+from .plutotvmx import PlutoTvMxProvider
+from .plutotvar import PlutoTvArProvider
+from .animeflv import AnimeFlvProvider
+from .animefenix import AnimefenixProvider
+from .latanime import LatanimeProvider
 
 PROVIDERS = [
     CineCalidadProvider(),
@@ -19,6 +32,19 @@ PROVIDERS = [
     JKanimeProvider(),
     IPTVProvider(),
     CableVisionHDProvider(),
+    # New providers
+    Cine24hProvider(),
+    DoramasflixProvider(),
+    PelisflixHdProvider(),
+    MagistvProvider(),
+    SeriesFlixProvider(),
+    TvporinternetHDProvider(),
+    TvLibrefutbolProvider(),
+    PlutoTvMxProvider(),
+    PlutoTvArProvider(),
+    AnimeFlvProvider(),
+    AnimefenixProvider(),
+    LatanimeProvider(),
 ]
 
 def get_provider(name: str):
