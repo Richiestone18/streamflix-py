@@ -310,6 +310,14 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+// Fallback: si HLS.js no carga del CDN, cargarlo de otro source
+if (typeof Hls === 'undefined') {
+  var s = document.createElement('script');
+  s.src = 'https://unpkg.com/hls.js@latest';
+  document.head.appendChild(s);
+}
+</script>
 
 <script>
 let currentProvider = '';
@@ -748,20 +756,34 @@ function playUrl(url) {
   // Destroy previous HLS instance
   if (window._hls) { window._hls.destroy(); window._hls = null; }
   
-  if (url.endsWith('.m3u8') || url.includes('.m3u8')) {
-    // HLS stream - use video tag with hls.js
-    iframe.style.display = 'none';
-    video.style.display = 'block';
-    video.src = url;
+  const isHls = url.endsWith('.m3u8') || url.includes('.m3u8');
+  
+  if (isHls) {
     if (window.Hls && Hls.isSupported()) {
+      // HLS stream - use video tag with hls.js
+      iframe.style.display = 'none';
+      video.style.display = 'block';
       const hls = new Hls();
       hls.loadSource(url);
       hls.attachMedia(video);
       window._hls = hls;
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(()=>{}));
+      hls.on(Hls.Events.ERROR, (e, data) => {
+        if (data.fatal) {
+          // Fallback: embed player in iframe
+          embedHlsPlayer(url);
+        }
+      });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari nativo
+      iframe.style.display = 'none';
+      video.style.display = 'block';
       video.src = url;
+      video.play().catch(()=>{});
+    } else {
+      // Sin HLS.js: embeber player en iframe
+      embedHlsPlayer(url);
     }
-    video.play().catch(()=>{});
   } else {
     // Regular URL - use iframe
     iframe.style.display = 'block';
@@ -774,12 +796,36 @@ function playUrl(url) {
   setAspect(currentAspect);
 }
 
+function embedHlsPlayer(url) {
+  const iframe = document.getElementById('player-frame');
+  const video = document.getElementById('player-video');
+  video.pause();
+  video.style.display = 'none';
+  iframe.style.display = 'block';
+  // Player HTML embebido que carga HLS.js desde CDN
+  const html = '<!DOCTYPE html>\n' +
+    '<html><head><meta charset="UTF-8">\n' +
+    '<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000}video{width:100%;height:100%}</style>\n' +
+    '<scr' + 'ipt src="https://cdn.jsdelivr.net/npm/hls.js@latest"></scr' + 'ipt>\n' +
+    '<scr' + 'ipt src="https://unpkg.com/hls.js@latest"></scr' + 'ipt>\n' +
+    '</head><body>\n' +
+    '<video id="v" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain"></video>\n' +
+    '<scr' + 'ipt>\n' +
+    'var v=document.getElementById("v");\n' +
+    'if(typeof Hls!=="undefined"&&Hls.isSupported()){var h=new Hls();h.loadSource("' + url + '");h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,function(){v.play()});}\n' +
+    'else if(v.canPlayType("application/vnd.apple.mpegurl")){v.src="' + url + '";v.play();}\n' +
+    '</scr' + 'ipt>\n' +
+    '</body></html>';
+  iframe.srcdoc = html;
+}
+
 function closePlayer() {
   document.getElementById('player-overlay').classList.remove('active');
   if (document.fullscreenElement) {
     document.exitFullscreen();
   }
   document.getElementById('player-frame').src = '';
+  document.getElementById('player-frame').srcdoc = '';
   const video = document.getElementById('player-video');
   video.pause();
   video.src = '';
