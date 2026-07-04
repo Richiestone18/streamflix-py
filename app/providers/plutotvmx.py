@@ -117,4 +117,5 @@ class PlutoTvMxProvider(BaseProvider):
         )
 
     async def get_servers(self, movie_id: str) -> list[Server]:
-        return [Server(id=movie_id, name="PlutoTV Stream")]
+        url, name, _ = self._decode_id(movie_id)
+        return [Server(id=url, name="PlutoTV Stream")]
