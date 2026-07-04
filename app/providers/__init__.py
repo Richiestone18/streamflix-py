@@ -9,7 +9,6 @@ from .flixlatam import FlixLatamProvider
 from .iptv import IPTVProvider
 from .cablevisionhd import CableVisionHDProvider
 # New providers from streamflix-reborn
-from .cine24h import Cine24hProvider
 from .doramasflix import DoramasflixProvider
 from .pelisflixhd import PelisflixHdProvider
 from .magistv import MagistvProvider
@@ -33,7 +32,6 @@ PROVIDERS = [
     IPTVProvider(),
     CableVisionHDProvider(),
     # New providers
-    Cine24hProvider(),
     DoramasflixProvider(),
     PelisflixHdProvider(),
     MagistvProvider(),
