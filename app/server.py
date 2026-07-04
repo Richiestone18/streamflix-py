@@ -24,11 +24,18 @@ async def root():
 @app.get("/api/providers")
 async def list_providers():
     results = []
+    # Providers whose items are direct live streams (skip detail screen)
+    IPTV_PROVIDERS = {
+        "IPTV", "CableVisionHD", "MAGISTV",
+        "PlutoTV MX", "PlutoTV AR",
+        "TvporinternetHD", "TvLibrefutbol",
+    }
     for p in PROVIDERS:
         results.append({
             "name": p.name,
             "base_url": p.base_url,
             "language": p.language,
+            "is_iptv": p.name in IPTV_PROVIDERS,
         })
     return {"providers": results}
 
@@ -313,6 +320,7 @@ let currentGenreId = '';
 let currentSearchQ = '';
 let isLoading = false;
 let currentDetailItem = null;
+let isIptvProvider = false; // IPTV providers skip detail screen, play directly
 
 // ===== PROVIDER SCREEN =====
 async function loadProviders() {
@@ -321,7 +329,7 @@ async function loadProviders() {
   const grid = document.getElementById('provider-grid');
   const icons = {CineCalidad:'🎥', Pelisplusto:'🍿', FlixLatam:'🎬', SoloLatino:'📺', LatinAnime:'斓', LaCartoons:'🎨', AnimeFLV:'🍁', JKanime:'Anime', IPTV:'📡', CableVisionHD:'📺', Doramasflix:'🎭', PelisflixHD:'🍿', MAGISTV:'📡', SeriesFlix:'📺', TvporinternetHD:'📡', TvLibrefutbol:'⚽', 'PlutoTV MX':'🇲🇽', 'PlutoTV AR':'🇦🇷', Animefenix:'🔥', Latanime:'🅰️'};
   grid.innerHTML = d.providers.map(p => `
-    <div class="provider-card" onclick="selectProvider('${p.name}')">
+    <div class="provider-card" onclick="selectProvider('${p.name}', ${p.is_iptv})">
       <div class="icon">${icons[p.name]||'🎬'}</div>
       <div class="name">${p.name}</div>
       <div class="desc">${p.language === 'es' ? 'Español' : p.language}</div>
@@ -337,8 +345,9 @@ async function loadProviders() {
   }
 }
 
-function selectProvider(name) {
+function selectProvider(name, isIptv) {
   currentProvider = name;
+  isIptvProvider = !!isIptv;
   document.getElementById('provider-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'block';
   // Auto-detect: try movies first; if empty, switch to series
@@ -464,7 +473,13 @@ function renderGrid(items) {
       ${isSeries?'<div class="badge">Serie</div>':''}
       <div class="title">${m.title}</div>
     `;
-    card.onclick = () => openDetail(m.id, isSeries || currentMode === 'series');
+    card.onclick = () => {
+      if (isIptvProvider) {
+        playIptvChannel(m.id, m.title);
+      } else {
+        openDetail(m.id, isSeries || currentMode === 'series');
+      }
+    };
     grid.appendChild(card);
   }
   const btn = document.getElementById('load-more');
@@ -509,7 +524,13 @@ async function loadMore() {
         ${isSeries?'<div class="badge">Serie</div>':''}
         <div class="title">${m.title}</div>
       `;
-      card.onclick = () => openDetail(m.id, isSeries);
+      card.onclick = () => {
+        if (isIptvProvider) {
+          playIptvChannel(m.id, m.title);
+        } else {
+          openDetail(m.id, isSeries);
+        }
+      };
       grid.appendChild(card);
     }
   }
@@ -612,6 +633,25 @@ function closeDetail() {
 }
 
 // ===== PLAYER =====
+async function playIptvChannel(itemId, title) {
+  // IPTV channels go directly to the player, no detail screen
+  document.getElementById('player-title').textContent = title || 'Canal en Vivo';
+  const sb = document.getElementById('server-buttons');
+  sb.innerHTML = '<div style="padding:.5rem 1rem;color:#888;width:100%;text-align:center">Conectando...</div>';
+  document.getElementById('player-overlay').classList.add('active');
+
+  const r = await fetch(`/api/servers/${currentProvider}?id=${encodeURIComponent(itemId)}`);
+  const d = await r.json();
+  if (!d.results || !d.results.length) {
+    sb.innerHTML = '<div style="padding:.5rem 1rem;color:var(--accent);width:100%;text-align:center">Sin servidores disponibles</div>';
+    return;
+  }
+  const sb2 = document.getElementById('server-buttons');
+  sb2.innerHTML = d.results.map((s,i) => `<button class="${i===0?'active':''}" onclick="playServer(${i})">${s.name}</button>`).join('');
+  window._servers = d.results;
+  playUrl(d.results[0].url);
+}
+
 async function playItem(itemId, isSeries) {
   if (isSeries && window._seasons && window._seasons.length > 0) {
     // Play first episode of first season
