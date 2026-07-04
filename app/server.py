@@ -1,10 +1,12 @@
 """FastAPI server for streamflix-py."""
 from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from .providers import PROVIDERS, get_provider
 from dataclasses import asdict
 
 app = FastAPI(title="Streamflix API")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 def serialize(obj):
@@ -125,7 +127,7 @@ video{{width:100%;height:100%;object-fit:contain}}
 </style></head><body>
 <video id="v" controls autoplay playsinline></video>
 <div id="err" style="display:none">Cargando stream...</div>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script src="/static/hls.min.js"></script>
 <script>
 var v=document.getElementById("v");
 var err=document.getElementById("err");
@@ -145,16 +147,7 @@ function play(){{
     err.style.display="block";err.textContent="Navegador no soporta HLS";
   }}
 }}
-// Si HLS.js no cargó del CDN, intentar unpkg
-if(typeof Hls==='undefined'){{
-  var s=document.createElement('script');
-  s.src='https://unpkg.com/hls.js@latest';
-  s.onload=play;
-  s.onerror=function(){{err.style.display="block";err.textContent="No se pudo cargar HLS.js";}};
-  document.head.appendChild(s);
-}}else{{
-  play();
-}}
+play();
 </script>
 </body></html>""")
 
@@ -355,12 +348,12 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
     </div>
   </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script src="/static/hls.min.js"></script>
 <script>
-// Fallback: si HLS.js no carga del CDN, cargarlo de otro source
+// Fallback: si HLS.js no carga local, cargarlo del CDN
 if (typeof Hls === 'undefined') {
   var s = document.createElement('script');
-  s.src = 'https://unpkg.com/hls.js@latest';
+  s.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest';
   document.head.appendChild(s);
 }
 </script>
