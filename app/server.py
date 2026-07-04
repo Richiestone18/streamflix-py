@@ -113,6 +113,52 @@ async def get_details(provider_name: str, id: str = Query(...)):
     return {"provider": provider_name, "details": serialize(details)}
 
 
+@app.get("/api/hls-player")
+async def hls_player(url: str = Query(...)):
+    """Serve an HTML HLS player page for a given stream URL."""
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>*{{margin:0;padding:0;box-sizing:border-box}}body{{background:#000;overflow:hidden}}
+video{{width:100%;height:100%;object-fit:contain}}
+#err{{color:#e94560;font-family:sans-serif;text-align:center;padding:2rem;font-size:1.2rem}}
+</style></head><body>
+<video id="v" controls autoplay playsinline></video>
+<div id="err" style="display:none">Cargando stream...</div>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+var v=document.getElementById("v");
+var err=document.getElementById("err");
+var url="{url}";
+function play(){{
+  if(window.Hls&&Hls.isSupported()){{
+    var h=new Hls();
+    h.loadSource(url);
+    h.attachMedia(v);
+    h.on(Hls.Events.MANIFEST_PARSED,function(){{v.play()}});
+    h.on(Hls.Events.ERROR,function(e,d){{
+      if(d.fatal){{err.style.display="block";err.textContent="Error: no se pudo cargar el stream";}}
+    }});
+  }}else if(v.canPlayType("application/vnd.apple.mpegurl")){{
+    v.src=url;v.play();
+  }}else{{
+    err.style.display="block";err.textContent="Navegador no soporta HLS";
+  }}
+}}
+// Si HLS.js no cargó del CDN, intentar unpkg
+if(typeof Hls==='undefined'){{
+  var s=document.createElement('script');
+  s.src='https://unpkg.com/hls.js@latest';
+  s.onload=play;
+  s.onerror=function(){{err.style.display="block";err.textContent="No se pudo cargar HLS.js";}};
+  document.head.appendChild(s);
+}}else{{
+  play();
+}}
+</script>
+</body></html>""")
+
+
 @app.get("/browse", response_class=HTMLResponse)
 async def browse():
     return BROWSE_HTML
@@ -641,23 +687,25 @@ function closeDetail() {
 }
 
 // ===== PLAYER =====
-async function playIptvChannel(itemId, title) {
+function playIptvChannel(itemId, title) {
   // IPTV channels go directly to the player, no detail screen
   document.getElementById('player-title').textContent = title || 'Canal en Vivo';
   const sb = document.getElementById('server-buttons');
   sb.innerHTML = '<div style="padding:.5rem 1rem;color:#888;width:100%;text-align:center">Conectando...</div>';
   document.getElementById('player-overlay').classList.add('active');
 
-  const r = await fetch(`/api/servers/${currentProvider}?id=${encodeURIComponent(itemId)}`);
-  const d = await r.json();
-  if (!d.results || !d.results.length) {
-    sb.innerHTML = '<div style="padding:.5rem 1rem;color:var(--accent);width:100%;text-align:center">Sin servidores disponibles</div>';
-    return;
-  }
-  const sb2 = document.getElementById('server-buttons');
-  sb2.innerHTML = d.results.map((s,i) => `<button class="${i===0?'active':''}" onclick="playServer(${i})">${s.name}</button>`).join('');
-  window._servers = d.results;
-  playUrl(d.results[0].url);
+  fetch(`/api/servers/${currentProvider}?id=${encodeURIComponent(itemId)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (!d.results || !d.results.length) {
+        sb.innerHTML = '<div style="padding:.5rem 1rem;color:var(--accent);width:100%;text-align:center">Sin servidores disponibles</div>';
+        return;
+      }
+      sb.innerHTML = d.results.map((s,i) => `<button class="${i===0?'active':''}" onclick="playServer(${i})">${s.name}</button>`).join('');
+      window._servers = d.results;
+      // IPTV streams: always use embed player (more reliable)
+      embedHlsPlayer(d.results[0].url);
+    });
 }
 
 async function playItem(itemId, isSeries) {
@@ -696,7 +744,12 @@ function playServer(idx) {
   document.querySelectorAll('.server-list button').forEach((b,i) => b.classList.toggle('active', i === idx));
   const url = window._servers[idx].url;
   document.getElementById('player-title').textContent = window._servers[idx].name;
-  playUrl(url);
+  // IPTV streams: always use embed player (more reliable)
+  if (isIptvProvider) {
+    embedHlsPlayer(url);
+  } else {
+    playUrl(url);
+  }
 }
 
 let currentAspect = 'fill';
@@ -802,21 +855,9 @@ function embedHlsPlayer(url) {
   video.pause();
   video.style.display = 'none';
   iframe.style.display = 'block';
-  // Player HTML embebido que carga HLS.js desde CDN
-  const html = '<!DOCTYPE html>\n' +
-    '<html><head><meta charset="UTF-8">\n' +
-    '<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000}video{width:100%;height:100%}</style>\n' +
-    '<scr' + 'ipt src="https://cdn.jsdelivr.net/npm/hls.js@latest"></scr' + 'ipt>\n' +
-    '<scr' + 'ipt src="https://unpkg.com/hls.js@latest"></scr' + 'ipt>\n' +
-    '</head><body>\n' +
-    '<video id="v" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain"></video>\n' +
-    '<scr' + 'ipt>\n' +
-    'var v=document.getElementById("v");\n' +
-    'if(typeof Hls!=="undefined"&&Hls.isSupported()){var h=new Hls();h.loadSource("' + url + '");h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,function(){v.play()});}\n' +
-    'else if(v.canPlayType("application/vnd.apple.mpegurl")){v.src="' + url + '";v.play();}\n' +
-    '</scr' + 'ipt>\n' +
-    '</body></html>';
-  iframe.srcdoc = html;
+  // Usar el endpoint del server que sirve el player HLS completo
+  iframe.srcdoc = '';
+  iframe.src = '/api/hls-player?url=' + encodeURIComponent(url);
 }
 
 function closePlayer() {
