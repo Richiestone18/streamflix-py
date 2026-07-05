@@ -176,49 +176,30 @@ class SeriesFlixProvider(BaseProvider):
             return None
 
     async def get_servers(self, movie_id: str) -> list[Server]:
-        try:
-            html = await self._get(movie_id)
-            soup = BeautifulSoup(html, "lxml")
-            servers = []
-            for group in soup.select(".optns-bx .drpdn"):
-                lang_label = ""
-                btn = group.select_one("button.bstd")
-                if btn:
-                    raw = btn.get_text(strip=True).upper()
-                    if "LATINO" in raw:
-                        lang_label = "Latino"
-                    elif "CASTELLANO" in raw or "ESPANOL" in raw:
-                        lang_label = "Castellano"
-                    elif "SUBTITULADO" in raw:
-                        lang_label = "Subtitulado"
-                    else:
-                        lang_label = btn.get_text(strip=True)
+        """For SeriesFlix, the movie_id is an episode URL.
+        Get the page and extract the server URLs from .Button.sgty[data-url]."""
+        import base64
+        html = await self._get(movie_id)
+        soup = BeautifulSoup(html, "lxml")
+        servers = []
 
-                for i, sb in enumerate(group.select(".Button.sgty[data-url]")):
-                    data_url = sb.get("data-url", "")
-                    if not data_url:
-                        continue
-                    try:
-                        decoded = base64.b64decode(data_url.strip()).decode("utf-8").strip()
-                    except Exception:
-                        continue
-                    if not decoded.startswith("http"):
-                        continue
-                    # Unwrap URL query param
-                    if "url=" in decoded:
-                        try:
-                            inner = decoded.split("url=")[1]
-                            decoded = urllib.parse.unquote(inner)
-                        except Exception:
-                            pass
-                    host = decoded.split("//")[-1].split("/")[0].replace("www.", "").split(".")[0].capitalize()
-                    servers.append(Server(id=decoded, name=f"{lang_label} - {host} {i+1}"))
-            seen = set()
-            unique = []
-            for s in servers:
-                if s.id not in seen:
-                    seen.add(s.id)
-                    unique.append(s)
-            return unique
-        except Exception:
-            return []
+        # The episode page has .Button.sgty[data-url] with base64 encoded URLs
+        for btn in soup.select(".Button.sgty[data-url]"):
+            data_url = btn.get("data-url", "").strip()
+            if not data_url:
+                continue
+            try:
+                decoded = base64.b64decode(data_url.strip()).decode("utf-8").strip()
+                if decoded.startswith("http"):
+                    servers.append(Server(id=decoded, name="SeriesFlix Stream"))
+            except Exception:
+                pass
+
+        # Fallback: try iframes
+        if not servers:
+            for iframe in soup.select("iframe[src]"):
+                src = iframe.get("src", "")
+                if src.startswith("http"):
+                    servers.append(Server(id=src, name="iframe"))
+
+        return servers
