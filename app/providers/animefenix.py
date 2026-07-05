@@ -129,7 +129,7 @@ class AnimefenixProvider(BaseProvider):
             poster_el = soup.select_one("#anime_image")
             poster = poster_el.get("data-src") or poster_el.get("src", "") if poster_el else None
 
-            overview_el = soup.select_one("h2:contains(Sinopsis) + p") or soup.select_one(".mb-6 p.text-gray-300")
+            overview_el = soup.select_one("h2:-soup-contains(Sinopsis) + p") or soup.select_one(".mb-6 p.text-gray-300")
             overview = overview_el.get_text(strip=True) if overview_el else None
 
             genres = []
@@ -174,6 +174,21 @@ class AnimefenixProvider(BaseProvider):
             html = await self._get(movie_id)
             soup = BeautifulSoup(html, "lxml")
             servers = []
+
+            # The servers are in a JavaScript tabsArray variable with iframe HTML
+            for script in soup.find_all("script"):
+                if script.string and "tabsArray" in script.string:
+                    # Extract iframe URLs from the JavaScript
+                    for m in re.finditer(r"""src=['"]([^'"]+)['"]""", script.string):
+                        url = m.group(1)
+                        if url.startswith("http"):
+                            # Try to get a readable name from the URL
+                            name = url.split("//")[-1].split("/")[0].replace("re.", "").split(".")[0].capitalize()
+                            servers.append(Server(id=url, name=name))
+                    if servers:
+                        return servers
+
+            # Fallback: try the original selectors
             for a in soup.select(".episode-page__servers-list li a"):
                 name = a.select("span")[-1].get_text(strip=True) if a.select("span") else "Server"
                 servers.append(Server(id=a.get("href", ""), name=name))

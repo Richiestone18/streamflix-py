@@ -13,7 +13,7 @@ from typing import Optional
 
 class SeriesFlixProvider(BaseProvider):
     name = "SeriesFlix"
-    base_url = "https://seriesflixhd.lol"
+    base_url = "https://seriesflixhd.hair"
     language = "es"
 
     def _normalize_img(self, url: str) -> str:
@@ -167,6 +167,32 @@ class SeriesFlixProvider(BaseProvider):
                 if m:
                     num = int(m.group(1))
                     seasons.append(Season(id=href, number=num, title=f"Temporada {num}"))
+
+            # Fetch episodes for each season
+            for season in seasons:
+                try:
+                    season_html = await self._get(season.id)
+                    season_soup = BeautifulSoup(season_html, "lxml")
+                    episodes = []
+                    for ep_a in season_soup.select("a[href*='/episodio/']"):
+                        ep_href = ep_a.get("href", "").strip()
+                        ep_title = ep_a.get_text(strip=True)
+                        m = re.search(r"(\d+)", ep_title)
+                        ep_num = int(m.group(1)) if m else 0
+                        if ep_href:
+                            # Avoid duplicates by checking if URL already exists
+                            if not any(e.id == ep_href for e in episodes):
+                                episodes.append(Episode(
+                                    id=ep_href,
+                                    number=ep_num,
+                                    season=season.number,
+                                    title=ep_title or f"Episodio {ep_num}"
+                                ))
+                    if episodes:
+                        episodes.reverse()  # newest first
+                        season.episodes = episodes
+                except Exception:
+                    pass
 
             return MediaDetails(
                 id=item_id, title=title, type="series", poster=poster,
