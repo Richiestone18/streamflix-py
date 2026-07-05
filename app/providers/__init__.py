@@ -3,7 +3,6 @@ from .lamovie import LaMovieProvider
 from .sololatino import SoloLatinoProvider
 from .latinanime import LatinAnimeProvider
 from .lacartoons import LaCartoonsProvider
-from .jkanime import JKanimeProvider
 from .pelisplusto import PelisplustoProvider
 from .flixlatam import FlixLatamProvider
 from .iptv import IPTVProvider
@@ -17,7 +16,6 @@ from .tvporinternethd import TvporinternetHDProvider
 from .tvlibrefutbol import TvLibrefutbolProvider
 from .plutotvmx import PlutoTvMxProvider
 from .plutotvar import PlutoTvArProvider
-from .animeflv import AnimeFlvProvider
 from .animefenix import AnimefenixProvider
 from .latanime import LatanimeProvider
 
