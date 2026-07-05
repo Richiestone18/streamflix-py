@@ -1,5 +1,5 @@
 """Provider registry."""
-from .cinecalidad import CineCalidadProvider
+from .lamovie import LaMovieProvider
 from .sololatino import SoloLatinoProvider
 from .latinanime import LatinAnimeProvider
 from .lacartoons import LaCartoonsProvider
@@ -22,7 +22,7 @@ from .animefenix import AnimefenixProvider
 from .latanime import LatanimeProvider
 
 PROVIDERS = [
-    CineCalidadProvider(),
+    LaMovieProvider(),
     PelisplustoProvider(),
     FlixLatamProvider(),
     SoloLatinoProvider(),

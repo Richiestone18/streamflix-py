@@ -466,7 +466,7 @@ async function loadProviders() {
   const r = await fetch('/api/providers');
   const d = await r.json();
   const grid = document.getElementById('provider-grid');
-  const icons = {CineCalidad:'🎥', Pelisplusto:'🍿', FlixLatam:'🎬', SoloLatino:'📺', LatinAnime:'斓', LaCartoons:'🎨', AnimeFLV:'🍁', JKanime:'Anime', IPTV:'📡', CableVisionHD:'📺', Doramasflix:'🎭', PelisflixHD:'🍿', MAGISTV:'📡', SeriesFlix:'📺', TvporinternetHD:'📡', TvLibrefutbol:'⚽', 'PlutoTV MX':'🇲🇽', 'PlutoTV AR':'🇦🇷', Animefenix:'🔥', Latanime:'🅰️'};
+  const icons = {LaMovie:'🎬', Pelisplusto:'🍿', FlixLatam:'🎞️', SoloLatino:'📺', LatinAnime:'斓', LaCartoons:'🎨', AnimeFLV:'🍁', JKanime:'Anime', IPTV:'📡', CableVisionHD:'📺', Doramasflix:'🎭', PelisflixHD:'🍿', MAGISTV:'📡', SeriesFlix:'📺', TvporinternetHD:'📡', TvLibrefutbol:'⚽', 'PlutoTV MX':'🇲🇽', 'PlutoTV AR':'🇦🇷', Animefenix:'🔥', Latanime:'🅰️'};
   grid.innerHTML = d.providers.map(p => `
     <div class="provider-card" onclick="selectProvider('${p.name}', ${p.is_iptv})">
       <div class="icon">${icons[p.name]||'🎬'}</div>
