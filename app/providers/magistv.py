@@ -132,7 +132,7 @@ class MagistvProvider(BaseProvider):
         ]
 
     async def get_details(self, item_id: str) -> Optional[MediaDetails]:
-        url, name, logo = self._decode_id(item_id)
+        url, name, logo, ua, ref = self._decode_id(item_id)
         return MediaDetails(
             id=item_id, title=name, type="movie",
             poster=logo if logo else None,
