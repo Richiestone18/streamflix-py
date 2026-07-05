@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-VERSION="1.0.0"
+VERSION="1.4.1"
 PKG_NAME="streamflix"
 PKG_DIR="${PKG_NAME}_${VERSION}_amd64"
 BIN_SRC="dist/Streamflix"
@@ -83,8 +83,11 @@ Description: Streaming aggregator desktop app
  Spanish-language providers in a single desktop application.
  .
  Features:
-  - 9 providers: CineCalidad, Pelisplusto, FlixLatam, SoloLatino,
-    LatinAnime, LaCartoons, AnimeFLV, IPTV, CableVisionHD
+  - 21 providers: CineCalidad, Pelisplusto, FlixLatam, SoloLatino,
+    LatinAnime, LaCartoons, JKanime, IPTV, CableVisionHD, Doramasflix,
+    PelisflixHD, MAGISTV, SeriesFlix, TvporinternetHD, TvLibrefutbol,
+    PlutoTV MX/AR, AnimeFLV, Animefenix, Latanime
+  - HLS proxy backend for IPTV streams (bypasses CORS/mixed-content)
   - Aspect ratio selector (fill, 16:9, 4:3, original)
   - Fullscreen mode
   - HLS.js for IPTV streams

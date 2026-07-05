@@ -1,5 +1,6 @@
-# PyInstaller spec file for building Streamflix standalone executable (Linux)
-# Usage: pyinstaller streamflix.spec
+# PyInstaller spec file for building Streamflix Windows DEBUG executable
+# This build has a console window for debugging output.
+# Usage: pyinstaller Streamflix-Windows-Debug.spec
 
 # -*- mode: python ; coding: utf-8 -*-
 
@@ -47,14 +48,14 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Streamflix',
+    name='Streamflix-Windows-DEBUG',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=True,  # DEBUG: show console window for error output
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

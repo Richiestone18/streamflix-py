@@ -1,12 +1,10 @@
 @echo off
-REM Build Streamflix desktop app for Windows using PyInstaller
-REM Output: dist\Streamflix.exe (single executable)
-REM
-REM Requirements: Python 3.10+, pip install pyinstaller
+REM Build Streamflix desktop app for Windows (DEBUG build with console)
+REM Output: dist\Streamflix-Windows-DEBUG.exe
 REM
 REM Usage: build_windows.bat
 
-echo === Building Streamflix for Windows ===
+echo === Building Streamflix for Windows (DEBUG) ===
 
 REM Create venv if needed
 if not exist ".venv" (
@@ -22,30 +20,16 @@ pip install -q -r requirements-app.txt pyinstaller
 REM Clean previous build
 rmdir /s /q build dist 2>nul
 
-REM Build single-file executable (no console window)
-echo Building executable...
-pyinstaller ^
-    --onefile ^
-    --windowed ^
-    --name Streamflix ^
-    --add-data "app;app" ^
-    --hidden-import cloudscraper ^
-    --hidden-import bs4 ^
-    --hidden-import lxml ^
-    --hidden-import httpx ^
-    --hidden-import uvicorn.logging ^
-    --hidden-import uvicorn.loops ^
-    --hidden-import uvicorn.loops.auto ^
-    --hidden-import uvicorn.protocols ^
-    --hidden-import uvicorn.protocols.http ^
-    --hidden-import uvicorn.protocols.http.auto ^
-    --hidden-import starlette ^
-    --hidden-import fastapi ^
-    app.py
+REM Build DEBUG executable (with console for error output)
+echo Building DEBUG executable...
+pyinstaller Streamflix-Windows-Debug.spec --noconfirm
 
 echo.
 echo === Build complete ===
-echo Executable: dist\Streamflix.exe
-echo Run with: dist\Streamflix.exe
-echo Run fullscreen: dist\Streamflix.exe --fullscreen
+echo Executable: dist\Streamflix-Windows-DEBUG.exe
+echo Run with: dist\Streamflix-Windows-DEBUG.exe
+echo Run fullscreen: dist\Streamflix-Windows-DEBUG.exe --fullscreen
+echo.
+echo NOTE: This is a DEBUG build - a console window will appear
+echo showing server logs and errors for troubleshooting.
 pause
