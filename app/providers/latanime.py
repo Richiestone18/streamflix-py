@@ -159,11 +159,26 @@ class LatanimeProvider(BaseProvider):
             for ga in soup.select("div.row > div > a:has(div.btn)"):
                 genres.append(ga.get_text(strip=True))
 
+            # Parse episodes from /ver/ links on the page
+            episodes = []
+            for a in soup.select('a[href*="/ver/"]'):
+                ep_href = a.get("href", "").strip()
+                ep_title = a.get_text(strip=True)
+                m = re.search(r"(\d+)", ep_title)
+                ep_num = int(m.group(1)) if m else 0
+                if ep_href:
+                    episodes.append(Episode(
+                        id=ep_href,
+                        number=ep_num,
+                        season=1,
+                        title=ep_title or f"Episodio {ep_num}"
+                    ))
+
             return MediaDetails(
                 id=item_id, title=title, type="series",
                 poster=self._fix_url(poster) if poster else None,
                 overview=overview, genres=genres,
-                seasons=[Season(id=item_id, number=1, title="Episodios")],
+                seasons=[Season(id=item_id, number=1, title="Episodios", episodes=episodes)],
             )
         except Exception:
             return None
