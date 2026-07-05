@@ -1,6 +1,9 @@
 """FastAPI server for streamflix-py."""
-from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse, JSONResponse
+import httpx
+import re
+from urllib.parse import urlparse, urlencode, quote
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 from .providers import PROVIDERS, get_provider
 from dataclasses import asdict
@@ -115,9 +118,98 @@ async def get_details(provider_name: str, id: str = Query(...)):
     return {"provider": provider_name, "details": serialize(details)}
 
 
+@app.get("/api/hls-proxy")
+async def hls_proxy(url: str = Query(...), request: Request = None):
+    """Proxy HLS streams to bypass CORS and mixed-content restrictions.
+
+    Fetches the stream from the backend (with optional custom headers) and
+    rewrites M3U8 playlist URLs to route back through this proxy.
+    Uses resp.url (final URL after redirects) as base for relative URLs.
+    """
+    params = dict(request.query_params) if request else {}
+    custom_ua = params.get("ua", "")
+    custom_ref = params.get("ref", "")
+
+    headers = {"User-Agent": custom_ua or "Mozilla/5.0 (Linux; Android 8.0.0)"}
+    if custom_ref:
+        headers["Referer"] = custom_ref
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+            content_type = resp.headers.get("content-type", "")
+            final_url = str(resp.url)  # URL after redirects
+
+            is_m3u8 = ("mpegurl" in content_type or "m3u8" in content_type
+                       or url.endswith(".m3u8") or "#EXTM3U" in resp.text[:50])
+
+            if is_m3u8:
+                # Compute base URL from the FINAL url (after redirects)
+                parsed = urlparse(final_url)
+                # base = everything up to the last /
+                base_url = final_url.rsplit("/", 1)[0] + "/"
+
+                def resolve(u):
+                    """Resolve a relative URL against the final URL."""
+                    if u.startswith("http://") or u.startswith("https://"):
+                        return u
+                    elif u.startswith("/"):
+                        return f"{parsed.scheme}://{parsed.netloc}{u}"
+                    elif u:
+                        # Handle query-string-only URLs (e.g. ?foo=bar)
+                        if u.startswith("?"):
+                            return final_url.split("?")[0] + u
+                        return base_url + u
+                    return ""
+
+                def proxied(u, ua, ref):
+                    target = resolve(u)
+                    extra = ""
+                    if ua:
+                        extra += f"&ua={quote(ua)}"
+                    if ref:
+                        extra += f"&ref={quote(ref)}"
+                    return f"/api/hls-proxy?url={quote(target)}{extra}"
+
+                text = resp.text
+
+                # Rewrite URI="..." attributes
+                text = re.sub(r'URI="([^"]+)"',
+                              lambda m: f'URI="{proxied(m.group(1), custom_ua, custom_ref)}"',
+                              text)
+
+                # Rewrite segment lines (non-# lines that look like URLs)
+                lines = text.split("\n")
+                for i, line in enumerate(lines):
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#"):
+                        lines[i] = line.replace(stripped, proxied(stripped, custom_ua, custom_ref))
+                text = "\n".join(lines)
+
+                return Response(content=text, media_type="application/vnd.apple.mpegurl",
+                                headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"})
+
+            # Binary segment (.ts, .m4s, etc.) — stream through
+            return Response(
+                content=resp.content,
+                media_type=content_type or "video/mp2t",
+                headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"},
+            )
+    except Exception as e:
+        return Response(content=f"Proxy error: {e}", status_code=502, media_type="text/plain")
+
+
 @app.get("/api/hls-player")
-async def hls_player(url: str = Query(...)):
-    """Serve an HTML HLS player page for a given stream URL."""
+async def hls_player(url: str = Query(...), ua: str = Query(""), ref: str = Query("")):
+    """Serve an HTML HLS player page for a given stream URL.
+
+    Routes the stream through /api/hls-proxy to bypass CORS / mixed-content.
+    """
+    proxy_url = f"/api/hls-proxy?url={quote(url)}"
+    if ua:
+        proxy_url += f"&ua={quote(ua)}"
+    if ref:
+        proxy_url += f"&ref={quote(ref)}"
     return HTMLResponse(f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -131,7 +223,7 @@ video{{width:100%;height:100%;object-fit:contain}}
 <script>
 var v=document.getElementById("v");
 var err=document.getElementById("err");
-var url="{url}";
+var url="{proxy_url}";
 function play(){{
   if(window.Hls&&Hls.isSupported()){{
     var h=new Hls();
@@ -696,9 +788,87 @@ function playIptvChannel(itemId, title) {
       }
       sb.innerHTML = d.results.map((s,i) => `<button class="${i===0?'active':''}" onclick="playServer(${i})">${s.name}</button>`).join('');
       window._servers = d.results;
-      // IPTV streams: always use embed player (more reliable)
-      embedHlsPlayer(d.results[0].url);
+      // IPTV streams: use direct HLS.js with proxy (more reliable than iframe)
+      playIptvStream(d.results[0].url);
     });
+}
+
+function playIptvStream(url) {
+  const iframe = document.getElementById('player-frame');
+  const video = document.getElementById('player-video');
+  // Destroy previous HLS instance
+  if (window._hls) { window._hls.destroy(); window._hls = null; }
+
+  // Decode base64-encoded URLs with custom headers (MAGISTV: url|ua|ref)
+  let streamUrl = url;
+  let ua = '';
+  let ref = '';
+  try {
+    const decoded = atob(url);
+    const parts = decoded.split('|');
+    if (parts.length >= 3) {
+      streamUrl = parts[0];
+      ua = parts[1] || '';
+      ref = parts[2] || '';
+    }
+  } catch(e) { /* not base64, use as-is */ }
+
+  // Build proxy URL
+  let proxyUrl = '/api/hls-proxy?url=' + encodeURIComponent(streamUrl);
+  if (ua) proxyUrl += '&ua=' + encodeURIComponent(ua);
+  if (ref) proxyUrl += '&ref=' + encodeURIComponent(ref);
+
+  // Hide iframe, show video
+  iframe.style.display = 'none';
+  iframe.src = '';
+  iframe.srcdoc = '';
+  video.style.display = 'block';
+
+  // Load HLS.js if needed
+  function startPlayback() {
+    if (window.Hls && Hls.isSupported()) {
+      const hls = new Hls({ liveDurationInfinity: true, lowLatencyMode: true });
+      window._hls = hls;
+      hls.loadSource(proxyUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(()=>{});
+      });
+      hls.on(Hls.Events.ERROR, (e, data) => {
+        if (data.fatal) {
+          // Try fallback: iframe player
+          let fbUrl = '/api/hls-player?url=' + encodeURIComponent(streamUrl);
+          if (ua) fbUrl += '&ua=' + encodeURIComponent(ua);
+          if (ref) fbUrl += '&ref=' + encodeURIComponent(ref);
+          video.style.display = 'none';
+          iframe.style.display = 'block';
+          iframe.src = fbUrl;
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari nativo
+      video.src = proxyUrl;
+      video.play().catch(()=>{});
+    } else {
+      // Fallback: iframe player
+      let fbUrl = '/api/hls-player?url=' + encodeURIComponent(streamUrl);
+      if (ua) fbUrl += '&ua=' + encodeURIComponent(ua);
+      if (ref) fbUrl += '&ref=' + encodeURIComponent(ref);
+      video.style.display = 'none';
+      iframe.style.display = 'block';
+      iframe.src = fbUrl;
+    }
+    setAspect(currentAspect);
+  }
+
+  if (typeof Hls === 'undefined') {
+    const s = document.createElement('script');
+    s.src = '/static/hls.min.js';
+    s.onload = startPlayback;
+    document.head.appendChild(s);
+  } else {
+    startPlayback();
+  }
 }
 
 async function playItem(itemId, isSeries) {
@@ -737,9 +907,9 @@ function playServer(idx) {
   document.querySelectorAll('.server-list button').forEach((b,i) => b.classList.toggle('active', i === idx));
   const url = window._servers[idx].url;
   document.getElementById('player-title').textContent = window._servers[idx].name;
-  // IPTV streams: always use embed player (more reliable)
+  // IPTV streams: use direct HLS.js with proxy
   if (isIptvProvider) {
-    embedHlsPlayer(url);
+    playIptvStream(url);
   } else {
     playUrl(url);
   }
@@ -802,6 +972,12 @@ function playUrl(url) {
   // Destroy previous HLS instance
   if (window._hls) { window._hls.destroy(); window._hls = null; }
   
+  // For IPTV providers, use the proxy-based player
+  if (isIptvProvider) {
+    playIptvStream(url);
+    return;
+  }
+  
   const isHls = url.endsWith('.m3u8') || url.includes('.m3u8');
   
   if (isHls) {
@@ -848,9 +1024,25 @@ function embedHlsPlayer(url) {
   video.pause();
   video.style.display = 'none';
   iframe.style.display = 'block';
-  // Usar el endpoint del server que sirve el player HLS completo
+  // Check if url is base64-encoded with custom headers (MAGISTV: url|ua|ref)
+  let playerUrl = '/api/hls-player?url=' + encodeURIComponent(url);
+  try {
+    // Try decoding as base64 to extract url|ua|ref
+    const decoded = atob(url);
+    const parts = decoded.split('|');
+    if (parts.length >= 3) {
+      const streamUrl = parts[0];
+      const ua = parts[1] || '';
+      const ref = parts[2] || '';
+      playerUrl = '/api/hls-player?url=' + encodeURIComponent(streamUrl);
+      if (ua) playerUrl += '&ua=' + encodeURIComponent(ua);
+      if (ref) playerUrl += '&ref=' + encodeURIComponent(ref);
+      // Also use the decoded stream URL for direct proxy
+      url = streamUrl;
+    }
+  } catch(e) { /* not base64, use as-is */ }
   iframe.srcdoc = '';
-  iframe.src = '/api/hls-player?url=' + encodeURIComponent(url);
+  iframe.src = playerUrl;
 }
 
 function closePlayer() {

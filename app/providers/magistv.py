@@ -83,9 +83,17 @@ class MagistvProvider(BaseProvider):
         try:
             decoded = base64.b64decode(idv).decode()
             parts = decoded.split("|")
-            return parts[0], parts[1] if len(parts) > 1 else "", parts[2] if len(parts) > 2 else ""
+            url = parts[0] if len(parts) > 0 else ""
+            name = parts[1] if len(parts) > 1 else ""
+            logo = parts[2] if len(parts) > 2 else ""
+            ua = parts[3] if len(parts) > 3 else ""
+            ref = parts[4] if len(parts) > 4 else ""
+            # Convert "None" string to empty
+            ua = "" if ua == "None" else ua
+            ref = "" if ref == "None" else ref
+            return url, name, logo, ua, ref
         except Exception:
-            return idv, "Canal", ""
+            return idv, "Canal", "", "", ""
 
     async def get_movies(self, page: int = 1) -> list[Movie]:
         return []
@@ -132,5 +140,11 @@ class MagistvProvider(BaseProvider):
         )
 
     async def get_servers(self, movie_id: str) -> list[Server]:
-        url, name, _ = self._decode_id(movie_id)
-        return [Server(id=url, name="MAGISTV Stream")]
+        url, name, _, ua, ref = self._decode_id(movie_id)
+        # Encode ua/ref into the server id so the frontend can pass them to the proxy
+        server_id = url
+        if ua or ref:
+            # Store headers in server id as url|ua|ref
+            import base64 as b64
+            server_id = b64.b64encode(f"{url}|{ua}|{ref}".encode()).decode()
+        return [Server(id=server_id, name="MAGISTV Stream")]
