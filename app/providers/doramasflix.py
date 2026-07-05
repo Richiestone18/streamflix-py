@@ -218,6 +218,22 @@ class DoramasflixProvider(BaseProvider):
             apollo_state = data.get("props", {}).get("pageProps", {}).get("apolloState", {})
 
             servers = []
+            # Try getMovieLinks first (new API structure) - keys have $ prefix in Apollo state
+            for key, val in apollo_state.items():
+                if "getMovieLinks" in key or "getDoramaLinks" in key:
+                    links_online = val.get("links_online", {})
+                    links_json = links_online.get("json", [])
+                    for link in links_json:
+                        server_url = link.get("link", "")
+                        if server_url:
+                            name = server_url.split("//")[-1].split("/")[0].split(".")[0].capitalize()
+                            lang_code = link.get("lang", "")
+                            lang = self._LANG_MAP.get(lang_code, "")
+                            servers.append(Server(id=server_url, name=f"{name} {lang}".strip()))
+                    if servers:
+                        return servers
+
+            # Fallback: old Episode/Movie structure
             for key, val in apollo_state.items():
                 if key.startswith("Episode:") or key.startswith("Movie:"):
                     links = val.get("links_online", {}).get("json", [])
