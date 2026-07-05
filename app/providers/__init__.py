@@ -1,4 +1,6 @@
-"""Provider registry."""
+"""
+Provider registry.
+"""
 from .lamovie import LaMovieProvider
 from .sololatino import SoloLatinoProvider
 from .latinanime import LatinAnimeProvider
@@ -26,7 +28,6 @@ PROVIDERS = [
     SoloLatinoProvider(),
     LatinAnimeProvider(),
     LaCartoonsProvider(),
-    JKanimeProvider(),
     IPTVProvider(),
     CableVisionHDProvider(),
     # New providers
@@ -38,7 +39,6 @@ PROVIDERS = [
     TvLibrefutbolProvider(),
     PlutoTvMxProvider(),
     PlutoTvArProvider(),
-    AnimeFlvProvider(),
     AnimefenixProvider(),
     LatanimeProvider(),
 ]
