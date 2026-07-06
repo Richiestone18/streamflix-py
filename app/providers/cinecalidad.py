@@ -11,6 +11,19 @@ class CineCalidadProvider(BaseProvider):
     name = "CineCalidad"
     base_url = "https://www.cinecalidad.ec"
 
+    async def _get(self, url: str) -> str:
+        """Override to send password cookie for site protection."""
+        import httpx
+        async with httpx.AsyncClient(
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"},
+            cookies={"password": "cc"},
+            follow_redirects=True,
+            timeout=30.0,
+        ) as c:
+            resp = await c.get(url)
+            resp.raise_for_status()
+            return resp.text
+
     def _parse_shows(self, elements: list) -> list:
         results = []
         for article in elements:
@@ -111,11 +124,22 @@ class CineCalidadProvider(BaseProvider):
         return [s for s in self._parse_shows(soup.select("article.item[id^=post-]"))
                 if isinstance(s, TvShow)]
 
+    # Domains known to block iframe embedding (403/X-Frame-Options)
+    _BLOCKED_DOMAINS = {"vimeos.net", "goodstream.one", "hlswish.com"}
+
+    def _domain_name(self, url: str) -> str:
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(url).hostname or ""
+            return host.replace("www.", "")
+        except Exception:
+            return ""
+
     async def get_servers(self, movie_id: str) -> list[Server]:
         url = movie_id
         html = await self._get(url)
         soup = BeautifulSoup(html, "lxml")
-        servers = []
+        raw_servers = []
 
         # Try #playeroptionsul li[data-option]
         for li in soup.select("#playeroptionsul li[data-option]"):
@@ -127,9 +151,9 @@ class CineCalidadProvider(BaseProvider):
             raw_url = li.get("data-option", "")
             name = li.get_text(strip=True) or "Server"
             if raw_url:
-                servers.append(Server(id=raw_url, name=name))
+                raw_servers.append((raw_url, name))
 
-        if not servers:
+        if not raw_servers:
             import base64
             for li in soup.select("ul.optnslst li[data-src]"):
                 data_src = li.get("data-src", "")
@@ -138,9 +162,18 @@ class CineCalidadProvider(BaseProvider):
                 except Exception:
                     continue
                 if decoded:
-                    servers.append(Server(id=decoded, name=li.get_text(strip=True) or "Server"))
+                    raw_servers.append((decoded, li.get_text(strip=True) or "Server"))
 
-        return servers
+        # Split into working and blocked
+        working = []
+        blocked = []
+        for srv_url, srv_name in raw_servers:
+            domain = self._domain_name(srv_url)
+            if domain in self._BLOCKED_DOMAINS:
+                blocked.append(Server(id=srv_url, name=f"⚠️ {srv_name}"))
+            else:
+                working.append(Server(id=srv_url, name=srv_name))
+        return working + blocked
 
     async def get_genre(self, genre_id: str, page: int = 1) -> list:
         url = f"{self.base_url}/{genre_id}/page/{page}"
@@ -167,7 +200,10 @@ class CineCalidadProvider(BaseProvider):
         # Poster
         img = soup.select_one("#single img[data-src], .dtsingle img[data-src]")
         if img:
-            details.poster = img.get("data-src") or img.get("src")
+            poster = img.get("data-src") or img.get("src", "")
+            if poster and isinstance(poster, str) and "image.tmdb.org" in poster:
+                poster = poster.replace("w342//", "w342/")
+            details.poster = poster
 
         # Overview (first <p> in the info column)
         for p in soup.select("#single p, .dtsingle p"):
