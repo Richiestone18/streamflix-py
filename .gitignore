@@ -5,8 +5,11 @@
 *.deb
 dist/
 build/
+build_win/
 *.spec
 release_files/
+streamflix_*/
+__pycache__/
 
 # Python
 __pycache__/

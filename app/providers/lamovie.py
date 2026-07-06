@@ -137,6 +137,17 @@ class LaMovieProvider(BaseProvider):
                     return details
         return None
 
+    # Domains known to block iframe embedding (403/X-Frame-Options)
+    _BLOCKED_DOMAINS = {"vimeos.net", "goodstream.one", "hlswish.com"}
+
+    def _domain_name(self, url: str) -> str:
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(url).hostname or ""
+            return host.replace("www.", "")
+        except Exception:
+            return ""
+
     async def get_servers(self, movie_id: str) -> list[Server]:
         # movie_id format: "type|numeric_id"
         parts = movie_id.split("|")
@@ -146,13 +157,21 @@ class LaMovieProvider(BaseProvider):
         url = f"{self.API_BASE}/player?postId={post_id}"
         data = await self._get_json(url)
         embeds = data.get("data", {}).get("embeds", [])
-        servers = []
+        # Split into working and blocked
+        working = []
+        blocked = []
         for e in embeds:
             stream_url = e.get("url", "")
             name = e.get("server", "Server")
             lang = e.get("lang", "")
             quality = e.get("quality", "")
-            if stream_url and "embed.html" not in stream_url:
-                full_name = f"{name} - {lang} {quality}".strip()
-                servers.append(Server(id=stream_url, name=full_name))
-        return servers
+            if not stream_url or "embed.html" in stream_url:
+                continue
+            domain = self._domain_name(stream_url)
+            full_name = f"{name} - {lang} {quality}".strip()
+            if domain in self._BLOCKED_DOMAINS:
+                blocked.append(Server(id=stream_url, name=f"⚠️ {full_name}"))
+            else:
+                working.append(Server(id=stream_url, name=full_name))
+        # Return working first, then blocked as fallback
+        return working + blocked

@@ -23,6 +23,14 @@ class CineCalidadProvider(BaseProvider):
                 continue
             title = img.get("alt", "")
             poster = img.get("data-src") or img.get("src", "")
+            # Fix double slash in TMDB URLs
+            if poster and "image.tmdb.org" in poster:
+                poster = poster.replace("//", "/", 1).replace("https:/", "https://", 1)
+                # Remove leftover double slash after w342/
+                poster = poster.replace("w342//", "w342/")
+            # Skip empty TMDB posters (no path after w342/)
+            if poster and poster.rstrip("/").endswith("w342"):
+                poster = ""
 
             if "/ver-pelicula/" in href:
                 results.append(Movie(id=href, title=title, poster=poster))
@@ -43,7 +51,14 @@ class CineCalidadProvider(BaseProvider):
             href = a.get("href", "")
             title = a.get("title", "")
             img = a.select_one("img")
-            poster = img.get("data-src") if img else None
+            poster = (img.get("data-src") or img.get("src", "")) if img else None
+            if poster and isinstance(poster, str):
+                if "image.tmdb.org" in poster:
+                    poster = poster.replace("w342//", "w342/")
+                if poster.rstrip("/").endswith("w342"):
+                    poster = ""
+            else:
+                poster = str(poster) if poster else None
             if "/ver-pelicula/" in href:
                 featured.append(Movie(id=href, title=title, banner=poster))
             elif "/ver-serie/" in href:
