@@ -81,6 +81,15 @@ class LaCartoonsProvider(BaseProvider):
             results.append(TvShow(id=href, title=title, poster=poster, year=year))
         return results
 
+    async def get_home(self) -> list[Category]:
+        try:
+            tv = await self.get_tv_shows()
+            if tv:
+                return [Category("Series Animadas", tv)]
+            return []
+        except Exception:
+            return []
+
     async def get_tv_shows(self, page: int = 1) -> list[TvShow]:
         url = f"{self.base_url}/?page={page}" if page > 1 else self.base_url
         html = await self._get(url)

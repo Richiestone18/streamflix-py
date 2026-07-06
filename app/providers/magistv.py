@@ -95,6 +95,15 @@ class MagistvProvider(BaseProvider):
         except Exception:
             return idv, "Canal", "", "", ""
 
+    async def get_home(self) -> list[Category]:
+        try:
+            tv = await self.get_tv_shows()
+            if tv:
+                return [Category("Contenido MAGISTV", tv)]
+            return []
+        except Exception:
+            return []
+
     async def get_movies(self, page: int = 1) -> list[Movie]:
         return []
 

@@ -56,6 +56,19 @@ class DoramasflixProvider(BaseProvider):
             return path
         return f"https://image.tmdb.org/t/p/w500{path}" if path else ""
 
+    async def get_home(self) -> list[Category]:
+        try:
+            movies = await self.get_movies()
+            tv = await self.get_tv_shows()
+            cats = []
+            if movies:
+                cats.append(Category("Películas Populares", movies))
+            if tv:
+                cats.append(Category("Doramas Populares", tv))
+            return cats
+        except Exception:
+            return []
+
     async def get_movies(self, page: int = 1) -> list[Movie]:
         query = """query listMovies($page: Int, $perPage: Int, $sort: SortFindManyMovieInput, $filter: FilterFindManyMovieInput) {
   paginationMovie(page: $page, perPage: $perPage, sort: $sort, filter: $filter) {

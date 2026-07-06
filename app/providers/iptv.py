@@ -97,6 +97,19 @@ class IPTVProvider(BaseProvider):
                     all_channels.append(ch)
         return all_channels
 
+    async def get_home(self) -> list[Category]:
+        try:
+            movies = await self.get_movies()
+            tv = await self.get_tv_shows()
+            cats = []
+            if movies:
+                cats.append(Category("Canales de Películas", movies))
+            if tv:
+                cats.append(Category("Canales de TV", tv))
+            return cats
+        except Exception:
+            return []
+
     async def get_movies(self, page: int = 1) -> list[Movie]:
         """Movies from IPTV (movie channels)."""
         channels = await self._get_playlist("movies")

@@ -68,6 +68,16 @@ class CableVisionHDProvider(BaseProvider):
         soup = BeautifulSoup(html, "lxml")
         return self._parse_channels(soup)
 
+    async def get_home(self) -> list[Category]:
+        channels = await self._get_all_channels()
+        if not channels:
+            return []
+        movies = [
+            Movie(id=ch["url"], title=ch["name"], poster=ch["poster"])
+            for ch in channels[:24]
+        ]
+        return [Category("Canales en Vivo", movies)]
+
     async def get_movies(self, page: int = 1) -> list[Movie]:
         # All channels shown as movies (live TV)
         channels = await self._get_all_channels()

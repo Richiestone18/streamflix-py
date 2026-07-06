@@ -84,6 +84,15 @@ class TvporinternetHDProvider(BaseProvider):
         except Exception:
             return self._cache or []
 
+    async def get_home(self) -> list[Category]:
+        try:
+            tv = await self.get_tv_shows()
+            if tv:
+                return [Category("Canales en Vivo", tv)]
+            return []
+        except Exception:
+            return []
+
     async def get_movies(self, page: int = 1) -> list[Movie]:
         return []
 

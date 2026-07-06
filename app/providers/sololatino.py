@@ -32,6 +32,15 @@ class SoloLatinoProvider(BaseProvider):
                 results.append(Movie(id=href, title=title, poster=poster))
         return results
 
+    async def get_home(self) -> list[Category]:
+        try:
+            movies = await self.get_movies()
+            if movies:
+                return [Category("Películas", movies)]
+            return []
+        except Exception:
+            return []
+
     async def get_movies(self, page: int = 1) -> list[Movie]:
         url = f"{self.base_url}/peliculas" if page == 1 else f"{self.base_url}/peliculas/page/{page}"
         html = await self._get(url)

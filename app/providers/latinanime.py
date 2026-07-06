@@ -29,6 +29,15 @@ class LatinAnimeProvider(BaseProvider):
             results.append(TvShow(id=href, title=title, poster=poster))
         return results
 
+    async def get_home(self) -> list[Category]:
+        try:
+            tv = await self.get_tv_shows()
+            if tv:
+                return [Category("Animes", tv)]
+            return []
+        except Exception:
+            return []
+
     async def get_movies(self, page: int = 1) -> list[Movie]:
         # LatinAnime is anime-only, no movies
         return []

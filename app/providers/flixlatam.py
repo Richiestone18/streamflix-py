@@ -90,6 +90,19 @@ class FlixLatamProvider(BaseProvider):
                 results.append(TvShow(id=href, title=title, poster=poster))
         return results
 
+    async def get_home(self) -> list[Category]:
+        try:
+            movies = await self.get_movies()
+            tv = await self.get_tv_shows()
+            cats = []
+            if movies:
+                cats.append(Category("Películas", movies))
+            if tv:
+                cats.append(Category("Series", tv))
+            return cats
+        except Exception:
+            return []
+
     async def get_movies(self, page: int = 1) -> list[Movie]:
         url = f"{self.base_url}/peliculas?page={page}"
         html = await self._get(url)
