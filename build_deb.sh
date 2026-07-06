@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-VERSION="1.4.2"
+VERSION="1.4.3"
 PKG_NAME="streamflix"
 PKG_DIR="${PKG_NAME}_${VERSION}_amd64"
 BIN_SRC="dist/Streamflix"
